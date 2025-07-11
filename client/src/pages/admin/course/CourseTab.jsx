@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+
 import {
   Card,
   CardContent,
@@ -18,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  useDeleteCourseMutation,
   useEditCourseMutation,
   useGetCourseByIdQuery,
   usePublishCourseMutation,
@@ -25,7 +27,7 @@ import {
 import { Loader2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 const CourseTab = () => {
@@ -41,10 +43,15 @@ const CourseTab = () => {
 
   const params = useParams();
   const courseId = params.courseId;
-  const { data: courseByIdData, isLoading: courseByIdLoading, refetch } =
-    useGetCourseByIdQuery(courseId);
+  const {
+    data: courseByIdData,
+    isLoading: courseByIdLoading,
+    refetch,
+  } = useGetCourseByIdQuery(courseId);
 
   const [publishCourse, {}] = usePublishCourseMutation();
+
+  const [deleteCourse] = useDeleteCourseMutation();
 
   useEffect(() => {
     if (courseByIdData?.course) {
@@ -66,9 +73,17 @@ const CourseTab = () => {
       }
     }
   }, [courseByIdData]);
+  //.......................................................................................
+  const hasLectures = courseByIdData?.course.lectures.length > 0;
+  const isPublished = courseByIdData?.course.isPublished;
 
   const [previewThumbnail, setPreviewThumbnail] = useState("");
   const navigate = useNavigate();
+  //.........................................................................................................................................
+  const location = useLocation();
+  useEffect(() => {
+    refetch();
+  }, [location]);
 
   const [editCourse, { data, isLoading, isSuccess, error }] =
     useEditCourseMutation();
@@ -121,6 +136,24 @@ const CourseTab = () => {
     }
   };
 
+  //...................................................................................
+
+  const handleRemoveCourse = async () => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this course?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await deleteCourse(courseId).unwrap();
+      toast.success("Course deleted successfully!");
+      navigate("/admin/course");
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete course");
+    }
+  };
+
   useEffect(() => {
     if (isSuccess) {
       toast.success(data.message || "Course update.");
@@ -146,8 +179,8 @@ const CourseTab = () => {
           </div>
 
           <div className="flex flex-wrap gap-2 sm:justify-end justify-center">
-            <Button
-            disabled ={courseByIdData?.course.lectures.length === 0}
+            {/* <Button
+              disabled={courseByIdData?.course.lectures.length === 0}
               variant="outline"
               onClick={() =>
                 publishStatusHandler(
@@ -155,12 +188,27 @@ const CourseTab = () => {
                 )
               }
             >
-              {courseByIdData?.course.isPublished ? "Unpublished" : "Publish"}
+              {courseByIdData?.course.isPublished ? "Unpublish" : "Publish"}
+            </Button> */}
+            <Button
+              disabled={!hasLectures}
+              variant="outline"
+              onClick={() =>
+                publishStatusHandler(isPublished ? "false" : "true")
+              }
+            >
+              {hasLectures
+                ? isPublished
+                  ? "Unpublish"
+                  : "Publish"
+                : "Publish"}
             </Button>
 
+            <Button onClick={handleRemoveCourse} variant="destructive">
+              Remove Course
+            </Button>
 
-
-            <Button>Remove Course</Button>
+            {/* <Button>Remove Course</Button> */}
           </div>
         </div>
       </CardHeader>

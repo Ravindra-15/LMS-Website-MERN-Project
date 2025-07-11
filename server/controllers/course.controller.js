@@ -28,6 +28,32 @@ export const createCourse = async (req, res) => {
         })
     }
 }
+
+export const getPublishedCourse = async (_, res) => {
+  try {
+    const courses = await Course.find({ isPublished: true }).populate({
+      path: "creator",
+      select: "name photoUrl",
+    });
+
+    if (!courses || courses.length === 0) {
+      return res.status(404).json({
+        message: "No published courses found.",
+      });
+    }
+
+    res.status(200).json({
+      courses,
+    });
+  } catch (error) {
+    console.error("getPublishedCourse error:", error);
+    return res.status(500).json({
+      message: "Failed to get published courses.",
+    });
+  }
+};
+
+
 export const getCreatorCourses = async (req, res) => {
     try {
         const userId = req.id;
@@ -283,3 +309,40 @@ export const togglePublishCourse = async (req, res) => {
 
 
  
+export const removeCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    const course = await Course.findById(courseId).populate("lectures");
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // Step 1: Delete associated lecture videos from Cloudinary and DB
+    for (const lecture of course.lectures) {
+      if (lecture.publicId) {
+        await deleteVideoFromCloudinary(lecture.publicId);
+      }
+      await Lecture.findByIdAndDelete(lecture._id);
+    }
+
+    // Step 2: Delete course thumbnail from Cloudinary
+    if (course.courseThumbnail) {
+      const publicId = course.courseThumbnail.split("/").pop().split(".")[0];
+      await deleteMediaFromCloudinary(publicId);
+    }
+
+    // Step 3: Delete the course
+    await Course.findByIdAndDelete(courseId);
+
+    return res.status(200).json({
+      message: "Course and its content deleted successfully.",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Failed to delete course",
+    });
+  }
+};
