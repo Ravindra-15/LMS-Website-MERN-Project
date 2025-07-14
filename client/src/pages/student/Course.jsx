@@ -2,9 +2,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import React from "react";
+import { Link } from "react-router-dom";
 
 const Course = ({ course }) => {
   return (
+    <Link to={`/course-detail/${course._id}`}>
     <Card className=" max-w-sm mx-auto overflow-hidden rounded-lg dark:bg-gray-800 bg-white shadow-lg hover:shadow-2xl transform hover:scale-105 transition-all duration-300 w-full sm:max-w-[300px]">
       <div className="relative h-48">
         <img
@@ -42,7 +44,10 @@ const Course = ({ course }) => {
         </div>
       </CardContent>
     </Card>
+    </Link>
+    
   );
+  
 };
 
 export default Course;

@@ -126,7 +126,7 @@ const LectureTab = () => {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            disbaled={removeLoading}
+            disabled={removeLoading}
             onClick={removeLecturehandler}
             variant="destructive"
           >

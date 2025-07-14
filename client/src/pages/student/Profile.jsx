@@ -67,11 +67,14 @@ const Profile = () => {
   }, [error, updateUserData, isSuccess, isError, refetch]);
 
   const user = data?.user;
+  // const user = data && data?.user;
+
+  console.log(user);
 
   if (isLoading || !user) return <h1>Profile is Loading...</h1>;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 my-24">
+    <div className="max-w-4xl mx-auto px-4 my-10">
       <h1 className="font-bold text-2xl text-center md:text-left">PROFILE</h1>
 
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 my-5">

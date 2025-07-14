@@ -50,9 +50,9 @@ const Navbar = () => {
         <div className=" flex items-center gap-2">
           <School size={"30"} />
           <Link to="/">
-          <h1 className=" hidden md:block font-extrabold text-2xl">
-            E-Learing
-          </h1>
+            <h1 className=" hidden md:block font-extrabold text-2xl">
+              E-Learing
+            </h1>
           </Link>
         </div>
         <div className="flex items-center gap-6">
@@ -86,10 +86,12 @@ const Navbar = () => {
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
 
-                {user.role === "instructor" && (
+                {user?.role === "instructor" && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>Dashboard</DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link to="/admin/dashboard">Dashboard</Link>
+                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -107,8 +109,10 @@ const Navbar = () => {
       </div>
       {/* Moblie Device */}
       <div className="flex md:hidden items-center px-4 justify-between h-full">
-        <h1 className="font-extrabold text-2xl">E Learning</h1>
-        <MobileNavbar />
+        <h1 className="font-extrabold text-2xl">
+          <Link to="/">E-Learning</Link>
+        </h1>
+        <MobileNavbar user={user} />
       </div>
     </div>
   );
@@ -116,14 +120,28 @@ const Navbar = () => {
 
 export default Navbar;
 
-const MobileNavbar = () => {
-  const role = "instructor";
+const MobileNavbar = ({ user }) => {
+  const navigate = useNavigate();
+  // const role = "instructor";
+
+  const [logoutUser, { data, isSuccess }] = useLogoutUserMutation();
+
+  const logoutHandler = async () => {
+    await logoutUser();
+  };
+
+  useEffect(() => {
+    if (isSuccess) {
+      toast.success(data.message || "User logged out.");
+      navigate("/login");
+    }
+  }, [isSuccess]);
   return (
     <Sheet>
       <SheetTrigger asChild>
         <Button
           size="icon"
-          className="rounded-full bg-gray-200 hover:bg-gray-200"
+          className="rounded-full  hover:bg-gray-200"
           variant="outline"
         >
           <Menu />
@@ -132,23 +150,38 @@ const MobileNavbar = () => {
       <SheetContent className="flex flex-col">
         <SheetHeader>
           <div className="flex flex-row items-center justify-between mt-2">
-            <SheetTitle>E-Learning</SheetTitle>
+            <SheetTitle>
+              <Link to="/">E-Learning</Link>
+            </SheetTitle>
             <DarkMode />
           </div>
         </SheetHeader>
 
         <Separator className="mr-2" />
 
-        <nav className="flex flex-col space-y-4">
-          <span>My Learning</span>
-          <span>Edit Profile</span>
-          <p>Log out</p>
+        <nav className="flex flex-col space-y-4 mt-4">
+          <SheetClose asChild>
+            <Link to="/my-learning">My Learning</Link>
+          </SheetClose>
+          <SheetClose asChild>
+            <Link to="/profile">Edit Profile</Link>
+          </SheetClose>
+          <SheetClose asChild>
+            <button onClick={logoutHandler} className="text-left w-full">
+              Log out
+            </button>
+          </SheetClose>
         </nav>
-
-        {role === "instructor" && (
+        
+        {user?.role === "instructor" && (
           <SheetFooter>
             <SheetClose asChild>
-              <Button type="submit">Dashboard</Button>
+              <Button
+                type="submit"
+                onClick={() => navigate("/admin/dashboard")}
+              >
+                Dashboard
+              </Button>
             </SheetClose>
           </SheetFooter>
         )}

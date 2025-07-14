@@ -345,6 +345,7 @@ const CourseTab = () => {
         </div>
       </CardContent>
     </Card>
+  
   );
 };
 
