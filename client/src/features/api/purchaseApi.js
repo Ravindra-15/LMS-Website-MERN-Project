@@ -21,7 +21,9 @@ export const purchaseApi = createApi({
             query: (courseId) => ({
                 url: `/course/${courseId}/detail-with-status`,
                 method: "GET",
-            })
+            }),
+            // Lock/unlock changes by the instructor must show up right away
+            keepUnusedDataFor: 0,
         }),
         getPurchasedCourses: builder.query({
             query: () => ({

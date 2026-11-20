@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Menu, School, Store } from "lucide-react";
+import { LayoutDashboard, Menu, School } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -44,18 +44,28 @@ const Navbar = () => {
     }
   }, [isSuccess]);
   return (
-    <div className="h-16 dark:bg-[#0A0A0A] bg-white  border-b dark:border-b-gray-800 border-b-gray-200 fixed top-0 left-0 right-0 duration-300 z-10">
+    <div className="h-16 dark:bg-[#0A0A0A] bg-white  border-b dark:border-b-gray-800 border-b-gray-200 fixed top-0 left-0 right-0 duration-300 z-50">
       {/*Desktop */}
       <div className="mt-4 max-w-7xl mx-auto hidden md:flex justify-between items-center gap-10">
         <div className=" flex items-center gap-2">
           <School size={"30"} />
           <Link to="/">
             <h1 className=" hidden md:block font-extrabold text-2xl">
-              E-Learing
+              E-Learning
             </h1>
           </Link>
         </div>
         <div className="flex items-center gap-6">
+          {user?.role === "instructor" && (
+            <Button
+              variant="outline"
+              onClick={() => navigate("/admin/dashboard")}
+              className="gap-2"
+            >
+              <LayoutDashboard size={16} />
+              Dashboard
+            </Button>
+          )}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -75,13 +85,14 @@ const Navbar = () => {
               <DropdownMenuContent className="w-56" align="start">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuGroup>
-                  <DropdownMenuItem>
-                    <Link to="my-learning">My Learning</Link>
+                  {/* asChild makes the whole row clickable, not just the text */}
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/my-learning">My Learning</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link to="profile">Edit Profile</Link>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/profile">Edit Profile</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={logoutHandler}>
+                  <DropdownMenuItem onClick={logoutHandler} className="cursor-pointer">
                     Log out
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -89,7 +100,7 @@ const Navbar = () => {
                 {user?.role === "instructor" && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem asChild className="cursor-pointer">
                       <Link to="/admin/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
                   </>

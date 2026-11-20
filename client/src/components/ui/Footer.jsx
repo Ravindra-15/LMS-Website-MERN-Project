@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 py-10 border-t dark:border-t-gray-700">
+    <footer className=" bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 py-10 border-t dark:border-t-gray-700">
       <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Left - Logo & Description */}
         <div>
-          <h2 className="text-2xl font-bold mb-2 text-black dark:text-white">Edemy</h2>
+          <h2 className="text-2xl font-bold mb-2 text-black dark:text-white">E-Learning</h2>
           <p className="text-sm">
-            Edemy is your platform for learning and upskilling. Join us and explore a wide variety of educational content designed just for you.
+            E-Learning is your platform for learning and upskilling. Join us and explore a wide variety of educational content designed just for you.
           </p>
         </div>
 
@@ -37,7 +37,7 @@ const Footer = () => {
           <h3 className="text-lg font-semibold mb-2 text-black dark:text-white">Connect with us</h3>
           <div className="flex space-x-4 mt-2">
             <a
-              href="https://instagram.com/yourprofile"
+              href="https://instagram.com/ravindisk"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-pink-500 transition-colors"
@@ -45,7 +45,7 @@ const Footer = () => {
               <Instagram size={24} />
             </a>
             <a
-              href="https://linkedin.com/in/yourprofile"
+              href="https://linkedin.com/in/Ravindra-15"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-blue-600 transition-colors"
@@ -58,7 +58,7 @@ const Footer = () => {
 
       {/* Bottom Line */}
       <div className="border-t mt-8 pt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        © {new Date().getFullYear()} Edemy. All rights reserved.
+        © {new Date().getFullYear()} E-Learning. All rights reserved.
       </div>
     </footer>
   );

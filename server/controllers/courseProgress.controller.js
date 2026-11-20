@@ -1,5 +1,6 @@
 import { CourseProgress } from "../models/courseProgress.js";
 import { Course } from "../models/course.model.js";
+import { CoursePurchase } from "../models/coursePurchase.model.js";
 
 export const getCourseProgress = async (req, res) => {
   try {
@@ -17,6 +18,19 @@ export const getCourseProgress = async (req, res) => {
     if (!courseDetails) {
       return res.status(404).json({
         message: "Course not found",
+      });
+    }
+
+    // Only buyers (or the course creator) may load the full lecture videos
+    const isCreator = String(courseDetails.creator) === String(userId);
+    const hasPurchased = await CoursePurchase.exists({
+      userId,
+      courseId,
+      status: "completed",
+    });
+    if (!isCreator && !hasPurchased) {
+      return res.status(403).json({
+        message: "Please purchase this course to access all lectures.",
       });
     }
 
@@ -41,6 +55,7 @@ export const getCourseProgress = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
+    return res.status(500).json({ message: "Failed to load course progress." });
   }
 };
 
