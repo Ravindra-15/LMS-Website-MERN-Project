@@ -146,23 +146,38 @@ export const getCourseDetailWithPurchaseStatus = async (req, res) => {
     
 
     const course = await Course.findById(courseId)
-      .populate({ path: "creator" })
-      .populate({ path: "lectures" });
-     
-
-    const purchased = await CoursePurchase.findOne({ userId, courseId });
-    console.log(purchased);
+      .populate({ path: "creator", select: "name photoUrl" }) // never send password/email
+      .populate({ path: "lectures" })
+      .lean();
 
     if (!course) {
       return res.status(404).json({ message: "course not found!" });
     }
 
+    // Only a completed (paid) purchase counts. A "pending" record is created
+    // as soon as checkout opens, so it must not unlock the course.
+    const purchased = await CoursePurchase.exists({
+      userId,
+      courseId,
+      status: "completed",
+    });
+    const isCreator = String(course.creator?._id) === String(userId);
+    const hasFullAccess = !!purchased || isCreator;
+
+    // Hide video links of locked lectures so they can't be watched for free
+    course.lectures = (course.lectures || []).map((lecture) =>
+      hasFullAccess || lecture.isPreviewFree
+        ? lecture
+        : { ...lecture, videoUrl: null, publicId: null }
+    );
+
     return res.status(200).json({
       course,
-      purchased: !!purchased, // true if purchased, false otherwise
+      purchased: hasFullAccess,
     });
   } catch (error) {
     console.log(error);
+    return res.status(500).json({ message: "Failed to load course details." });
   }
 };
 

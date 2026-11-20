@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { COURSE_CATEGORIES } from "@/lib/courseOptions";
 
 import {
   Card,
@@ -25,9 +26,9 @@ import {
   usePublishCourseMutation,
 } from "@/features/api/courseApi";
 import { Loader2 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 const CourseTab = () => {
@@ -43,95 +44,98 @@ const CourseTab = () => {
 
   const params = useParams();
   const courseId = params.courseId;
+  // Always load fresh data from the server when this page opens (and after
+  // refresh), so the form never starts from an old cached copy.
   const {
     data: courseByIdData,
     isLoading: courseByIdLoading,
-    refetch,
-  } = useGetCourseByIdQuery(courseId);
+    isError: courseByIdError,
+  } = useGetCourseByIdQuery(courseId, { refetchOnMountOrArgChange: true });
 
-  const [publishCourse, {}] = usePublishCourseMutation();
-
+  const [publishCourse, { isLoading: publishing }] = usePublishCourseMutation();
   const [deleteCourse] = useDeleteCourseMutation();
-
-  useEffect(() => {
-    if (courseByIdData?.course) {
-      const course = courseByIdData?.course; // Now matches backend response
-      console.log("Fetched course:", course);
-      setInput({
-        courseTitle: course.courseTitle || "",
-        subTitle: course.subTitle || "",
-        description: course.description || "",
-        category: course.category || "",
-        courseLevel: course.courseLevel || "Beginner",
-        coursePrice: course.coursePrice?.toString() || "",
-        courseThumbnail: course.courseThumbnail || "",
-      });
-
-      // Set thumbnail preview if exists
-      if (course.courseThumbnail) {
-        setPreviewThumbnail(course.courseThumbnail);
-      }
-    }
-  }, [courseByIdData]);
-  //.......................................................................................
-  const hasLectures = courseByIdData?.course.lectures.length > 0;
-  const isPublished = courseByIdData?.course.isPublished;
-
   const [previewThumbnail, setPreviewThumbnail] = useState("");
   const navigate = useNavigate();
-  //.........................................................................................................................................
-  const location = useLocation();
+
   useEffect(() => {
-    refetch();
-  }, [location]);
+    const course = courseByIdData?.course;
+    if (!course) return;
+    setInput({
+      courseTitle: course.courseTitle || "",
+      subTitle: course.subTitle || "",
+      description: course.description || "",
+      category: course.category || "",
+      courseLevel: course.courseLevel || "",
+      coursePrice:
+        course.coursePrice === undefined || course.coursePrice === null
+          ? ""
+          : String(course.coursePrice),
+      courseThumbnail: course.courseThumbnail || "",
+    });
+    setPreviewThumbnail(course.courseThumbnail || "");
+  }, [courseByIdData]);
 
-  const [editCourse, { data, isLoading, isSuccess, error }] =
-    useEditCourseMutation();
+  const hasLectures = courseByIdData?.course?.lectures?.length > 0;
+  const isPublished = courseByIdData?.course?.isPublished;
 
+  const [editCourse, { isLoading }] = useEditCourseMutation();
+
+  // Functional updates everywhere so one field can never overwrite another
   const changeEventHandler = (e) => {
     const { name, value } = e.target;
-    setInput({ ...input, [name]: value });
+    setInput((prev) => ({ ...prev, [name]: value }));
   };
+  const selectCategory = (value) => setInput((prev) => ({ ...prev, category: value }));
+  const selectCourseLevel = (value) => setInput((prev) => ({ ...prev, courseLevel: value }));
 
-  const selectCategory = (value) => {
-    setInput({ ...input, category: value });
-  };
-  const selectCourseLevel = (value) => {
-    setInput({ ...input, courseLevel: value });
-  };
-
-  // get file
   const selectThumbnail = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setInput({ ...input, courseThumbnail: file });
-      const fileReader = new FileReader();
-      fileReader.onloadend = () => setPreviewThumbnail(fileReader.result);
-      fileReader.readAsDataURL(file);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
     }
+    setInput((prev) => ({ ...prev, courseThumbnail: file }));
+    const fileReader = new FileReader();
+    fileReader.onloadend = () => setPreviewThumbnail(fileReader.result);
+    fileReader.readAsDataURL(file);
   };
 
   const updateCourseHandler = async () => {
+    if (!input.courseTitle.trim()) {
+      toast.error("Course title is required.");
+      return;
+    }
+    if (input.coursePrice !== "" && Number(input.coursePrice) < 0) {
+      toast.error("Price can't be negative.");
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("courseTitle", input.courseTitle);
+    formData.append("courseTitle", input.courseTitle.trim());
     formData.append("subTitle", input.subTitle);
     formData.append("description", input.description);
     formData.append("category", input.category);
     formData.append("courseLevel", input.courseLevel);
     formData.append("coursePrice", input.coursePrice);
-    formData.append("courseThumbnail", input.courseThumbnail);
+    // Only send a thumbnail when a new image file was chosen
+    if (input.courseThumbnail instanceof File) {
+      formData.append("courseThumbnail", input.courseThumbnail);
+    }
 
-    await editCourse({ formData, courseId });
+    try {
+      const res = await editCourse({ formData, courseId }).unwrap();
+      toast.success(res?.message || "Course updated.");
+    } catch (err) {
+      toast.error(err?.data?.message || "Failed to update course");
+    }
   };
 
   const publishStatusHandler = async (action) => {
     try {
-      const response = await publishCourse({ courseId, query: action });
-      if (response.data) {
-        refetch();
-        toast.success(response.data.message);
-      }
-    } catch (error) {
+      const res = await publishCourse({ courseId, query: action }).unwrap();
+      toast.success(res.message);
+    } catch {
       toast.error("Failed to publish or unpublish course");
     }
   };
@@ -145,7 +149,7 @@ const CourseTab = () => {
     if (!confirmDelete) return;
 
     try {
-      const res = await deleteCourse(courseId).unwrap();
+      await deleteCourse(courseId).unwrap();
       toast.success("Course deleted successfully!");
       navigate("/admin/course");
     } catch (error) {
@@ -154,17 +158,15 @@ const CourseTab = () => {
     }
   };
 
-  useEffect(() => {
-    if (isSuccess) {
-      toast.success(data.message || "Course update.");
-    }
-    if (error) {
-      toast.error(error.data.message || "Failed to update course");
-    }
-  }, [isSuccess, error]);
-
   if (courseByIdLoading) {
-    return <div className="p-4">Loading course...</div>; // or use a spinner component
+    return (
+      <div className="p-4 flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading course...
+      </div>
+    );
+  }
+  if (courseByIdError || !courseByIdData?.course) {
+    return <div className="p-4 text-red-500">Failed to load this course.</div>;
   }
 
   return (
@@ -191,7 +193,8 @@ const CourseTab = () => {
               {courseByIdData?.course.isPublished ? "Unpublish" : "Publish"}
             </Button> */}
             <Button
-              disabled={!hasLectures}
+              disabled={!hasLectures || publishing}
+              title={hasLectures ? "" : "Add at least one lecture to publish"}
               variant="outline"
               onClick={() =>
                 publishStatusHandler(isPublished ? "false" : "true")
@@ -250,29 +253,18 @@ const CourseTab = () => {
             <Label>Category</Label>
             <Select
               onValueChange={selectCategory}
-              defaultValue={input.category}
+              value={input.category}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="Next JS">Next JS</SelectItem>
-                  <SelectItem value="Data Science">Data Science</SelectItem>
-                  <SelectItem value="Frontend Development">
-                    Frontend Development
-                  </SelectItem>
-                  <SelectItem value="Fullstack Development">
-                    Fullstack Development
-                  </SelectItem>
-                  <SelectItem value="MERN Stack Development">
-                    MERN Stack Development
-                  </SelectItem>
-                  <SelectItem value="Javascript">Javascript</SelectItem>
-                  <SelectItem value="Python">Python</SelectItem>
-                  <SelectItem value="Docker">Docker</SelectItem>
-                  <SelectItem value="MongoDB">MongoDB</SelectItem>
-                  <SelectItem value="HTML">HTML</SelectItem>
+                  {COURSE_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
@@ -282,7 +274,7 @@ const CourseTab = () => {
             <Label>Course Level</Label>
             <Select
               onValueChange={selectCourseLevel}
-              defaultValue={input.courseLevel}
+              value={input.courseLevel}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select course level" />

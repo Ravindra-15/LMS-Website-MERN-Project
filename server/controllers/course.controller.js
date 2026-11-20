@@ -1,3 +1,4 @@
+import fs from "fs/promises";
 import { Course } from "../models/course.model.js";
 import { Lecture } from "../models/lecture.model.js";
 import { deleteMediaFromCloudinary, deleteVideoFromCloudinary, uploadMedia } from "../utils/cloudinary.js";
@@ -29,44 +30,106 @@ export const createCourse = async (req, res) => {
     }
 }
 
+// Escape user text so characters like "+" or "(" are matched literally
+// (e.g. searching "c++" must not crash the regex).
+const escapeRegex = (text = "") => String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Accepts "a,b,c", ["a","b"] or undefined and returns a clean array.
+const toList = (value) =>
+    (Array.isArray(value) ? value.join(",") : String(value ?? ""))
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+const toNumber = (value) => {
+    if (value === undefined || value === null || value === "") return undefined;
+    const num = Number(value);
+    return Number.isFinite(num) && num >= 0 ? num : undefined;
+};
+
 export const searchCourse = async (req, res) => {
     try {
-        const { query = "", categories = [], sortByPrice = "" } = req.query;
-        console.log(categories);
+        const { query = "", price = "", sortByPrice = "" } = req.query;
+        const categories = toList(req.query.categories);
+        const levels = toList(req.query.levels);
+        const minPrice = toNumber(req.query.minPrice);
+        const maxPrice = toNumber(req.query.maxPrice);
 
-        // create search query
-        const searchCriteria = {
-            isPublished: true,
-            $or: [
-                { courseTitle: { $regex: query, $options: "i" } },
-                { subTitle: { $regex: query, $options: "i" } },
-                { category: { $regex: query, $options: "i" } },
-            ]
+        const searchCriteria = { isPublished: true };
+        const andConditions = [];
+
+        // Free-text search across title, subtitle and category
+        const text = escapeRegex(String(query).trim());
+        if (text) {
+            andConditions.push({
+                $or: [
+                    { courseTitle: { $regex: text, $options: "i" } },
+                    { subTitle: { $regex: text, $options: "i" } },
+                    { category: { $regex: text, $options: "i" } },
+                ],
+            });
         }
 
-        // if categories selected
+        // Categories: exact name, case-insensitive
         if (categories.length > 0) {
-            searchCriteria.category = { $in: categories };
+            searchCriteria.category = {
+                $in: categories.map((c) => new RegExp(`^${escapeRegex(c)}$`, "i")),
+            };
         }
 
-        // define sorting order
-        const sortOptions = {};
-        if (sortByPrice === "low") {
-            sortOptions.coursePrice = 1;//sort by price in ascending
-        } else if (sortByPrice === "high") {
-            sortOptions.coursePrice = -1; // descending
+        // Course level
+        if (levels.length > 0) {
+            searchCriteria.courseLevel = {
+                $in: levels.map((l) => new RegExp(`^${escapeRegex(l)}$`, "i")),
+            };
         }
 
-        let courses = await Course.find(searchCriteria).populate({ path: "creator", select: "name photoUrl" }).sort(sortOptions);
+        // Price: free / paid / range
+        if (price === "free") {
+            // null also matches courses with no price set
+            andConditions.push({ coursePrice: { $in: [0, null] } });
+        } else {
+            const priceRange = {};
+            if (price === "paid") priceRange.$gt = 0;
+            if (minPrice !== undefined) priceRange.$gte = minPrice;
+            if (maxPrice !== undefined) priceRange.$lte = maxPrice;
+            if (Object.keys(priceRange).length > 0) searchCriteria.coursePrice = priceRange;
+        }
+
+        if (andConditions.length > 0) searchCriteria.$and = andConditions;
+
+        // Sorting ("sortByPrice" low/high kept for older clients)
+        const sortBy =
+            req.query.sortBy ||
+            (sortByPrice === "low" ? "price-asc" : sortByPrice === "high" ? "price-desc" : "newest");
+        const sortMap = {
+            newest: { createdAt: -1 },
+            "price-asc": { coursePrice: 1, createdAt: -1 },
+            "price-desc": { coursePrice: -1, createdAt: -1 },
+            title: { courseTitle: 1 },
+        };
+
+        const courses = await Course.find(searchCriteria)
+            .populate({ path: "creator", select: "name photoUrl" })
+            .sort(sortMap[sortBy] || sortMap.newest);
+
+        if (sortBy === "popular") {
+            courses.sort(
+                (a, b) => (b.enrolledStudents?.length || 0) - (a.enrolledStudents?.length || 0)
+            );
+        }
 
         return res.status(200).json({
             success: true,
-            courses: courses || []
+            count: courses.length,
+            courses,
         });
-
     } catch (error) {
         console.log(error);
-
+        return res.status(500).json({
+            success: false,
+            message: "Failed to search courses.",
+        });
     }
 }
 
@@ -130,20 +193,36 @@ export const editCourse = async (req, res) => {
                 message: "Course not found!"
             })
         }
-        let courseThumbnail;
-        if (thumbnail) {
-            if (course.courseThumbnail) {
-                const publicId = course.courseThumbnail.split("/").pop().split(".")[0];
-                await deleteMediaFromCloudinary(publicId); // delete old image
-            }
-            // upload a thumbnail on clourdinary
-            courseThumbnail = await uploadMedia(thumbnail.path);
+        // Build the update from valid values only, so a missing or empty field
+        // never wipes data that is already saved.
+        const updateData = {};
+        if (typeof courseTitle === "string" && courseTitle.trim()) updateData.courseTitle = courseTitle.trim();
+        if (typeof subTitle === "string") updateData.subTitle = subTitle;
+        if (typeof description === "string") updateData.description = description;
+        if (typeof category === "string" && category.trim()) updateData.category = category.trim();
+        if (["Beginner", "Intermediate", "Advanced"].includes(courseLevel)) updateData.courseLevel = courseLevel;
+        if (coursePrice !== undefined && coursePrice !== "" && Number(coursePrice) >= 0) {
+            updateData.coursePrice = Number(coursePrice);
         }
 
+        if (thumbnail) {
+            try {
+                // Upload the new image first; only delete the old one if that worked
+                const uploaded = await uploadMedia(thumbnail.path);
+                if (!uploaded?.secure_url) {
+                    return res.status(500).json({ message: "Thumbnail upload failed. Course not changed." });
+                }
+                if (course.courseThumbnail) {
+                    const oldPublicId = course.courseThumbnail.split("/").pop().split(".")[0];
+                    deleteMediaFromCloudinary(oldPublicId);
+                }
+                updateData.courseThumbnail = uploaded.secure_url;
+            } finally {
+                fs.unlink(thumbnail.path).catch(() => {}); // remove temp file
+            }
+        }
 
-        const updateData = { courseTitle, subTitle, description, category, courseLevel, coursePrice, courseThumbnail: courseThumbnail?.secure_url };
-
-        course = await Course.findByIdAndUpdate(courseId, updateData, { new: true });
+        course = await Course.findByIdAndUpdate(courseId, { $set: updateData }, { new: true });
 
         return res.status(200).json({
             course,
@@ -243,11 +322,23 @@ export const editLecture = async (req, res) => {
             })
         }
 
-        // update lecture
-        if (lectureTitle) lecture.lectureTitle = lectureTitle;
-        if (videoInfo?.videoUrl) lecture.videoUrl = videoInfo.videoUrl;
-        if (videoInfo?.publicId) lecture.publicId = videoInfo.publicId;
-        lecture.isPreviewFree = isPreviewFree;
+        // update lecture — only the fields that were sent, so the client can
+        // save just the free/locked switch without touching title or video
+        if (typeof lectureTitle === "string" && lectureTitle.trim()) {
+            lecture.lectureTitle = lectureTitle.trim();
+        }
+        if (videoInfo?.videoUrl && videoInfo?.publicId) {
+            const oldPublicId = lecture.publicId;
+            lecture.videoUrl = videoInfo.videoUrl;
+            lecture.publicId = videoInfo.publicId;
+            // A new video replaced the old one: remove the old file from Cloudinary
+            if (oldPublicId && oldPublicId !== videoInfo.publicId) {
+                deleteVideoFromCloudinary(oldPublicId);
+            }
+        }
+        if (isPreviewFree !== undefined) {
+            lecture.isPreviewFree = isPreviewFree === true || isPreviewFree === "true";
+        }
 
         await lecture.save();
 

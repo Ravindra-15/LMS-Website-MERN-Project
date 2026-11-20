@@ -21,16 +21,14 @@ export const register = async (req, res) => {
             })
         }
         const hashedPassword = await bcrypt.hash(password, 10);
-        await User.create({
+        const newUser = await User.create({
             name,
             email,
             password: hashedPassword
         })
 
-        return res.status(201).json({
-            success: true,
-            message: "Account Created Successfully."
-        })
+        // Log the user in right away by setting the auth cookie
+        return generateToken(res, newUser, "Account Created Successfully.");
 
     } catch (error) {
         console.log(error);

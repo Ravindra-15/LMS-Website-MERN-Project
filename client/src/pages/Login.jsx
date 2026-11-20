@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRegisterUserMutation } from "@/features/api/authApi";
@@ -67,6 +68,7 @@ const Login = () => {
   useEffect(() => {
     if (registerIsSuccess && registerData) {
       toast.success(registerData.message || "Signup Successful.");
+      navigate("/");
     }
 
     if (loginIsSuccess && loginData) {
@@ -89,7 +91,7 @@ const Login = () => {
   ]);
 
   return (
-    <div className="flex items-center w-full justify-center mt-20">
+    <div className="flex items-center w-full justify-center px-4 py-20">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <Tabs
           defaultValue="login"
@@ -134,12 +136,11 @@ const Login = () => {
                 </div>
                 <div className="grid gap-3">
                   <Label>Password</Label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     name="password"
                     value={signupInput.password}
                     onChange={(e) => changeInputHandler(e, "signup")}
-                    placeholder="xyz"
+                    placeholder="Enter your password"
                     required
                   />
                 </div>
@@ -185,12 +186,11 @@ const Login = () => {
                 </div>
                 <div className="grid gap-3">
                   <Label>Password</Label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     name="password"
                     value={loginInput.password}
                     onChange={(e) => changeInputHandler(e, "login")}
-                    placeholder="xyz"
+                    placeholder="Enter your password"
                     required
                   />
                 </div>

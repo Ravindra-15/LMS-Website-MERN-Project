@@ -5,18 +5,20 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const Dashboard = () => {
 
-  const {data, isSuccess, isError, isLoading} = useGetPurchasedCoursesQuery();
+  const { data, isError, isLoading } = useGetPurchasedCoursesQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
-  if(isLoading) return <h1>Loading...</h1>
-  if(isError) return <h1 className="text-red-500">Failed to get purchased course</h1>
+  if (isLoading) return <h1>Loading...</h1>;
+  if (isError) return <h1 className="text-red-500">Failed to get purchased courses</h1>;
 
-  //
-  const {purchasedCourse} = data || [];
+  // Skip purchases whose course was deleted, so the page can't crash
+  const purchasedCourse = (data?.purchasedCourse || []).filter((p) => p?.courseId);
 
-  const courseData = purchasedCourse.map((course)=> ({
-    name:course.courseId.courseTitle,
-    price:course.courseId.coursePrice
-  }))
+  const courseData = purchasedCourse.map((course) => ({
+    name: course.courseId.courseTitle,
+    price: course.courseId.coursePrice,
+  }));
 
   const totalRevenue = purchasedCourse.reduce((acc,element) => acc+(element.amount || 0), 0);
 
@@ -37,14 +39,14 @@ const Dashboard = () => {
           <CardTitle>Total Revenue</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-bold text-blue-600">{totalRevenue}</p>
+          <p className="text-3xl font-bold text-blue-600">₹{totalRevenue.toLocaleString("en-IN")}</p>
         </CardContent>
       </Card>
 
       {/* Course Prices Card */}
       <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4">
         <CardHeader>
-          <CardTitle className="text-xl font-semibold text-gray-700">
+          <CardTitle className="text-xl font-semibold">
             Course Prices
           </CardTitle>
         </CardHeader>
